@@ -46,22 +46,11 @@ onload = function () {
         })
       } else {
         var getTweets = `
-          var promoted = document.getElementsByClassName('promoted-tweet')
-          var position = window.scrollY
-
           var array = []
-          for (var tweet of promoted) {
-            var html = tweet.innerHTML
-            var rect = tweet.getBoundingClientRect()
+          var promoted = document.getElementsByClassName('promoted-tweet')
 
-            array.push({
-              html: html,
-              x: rect.left,
-              y: rect.top,
-              width: rect.width,
-              height: rect.height,
-              position: position
-            })
+          for (var tweet of promoted) {
+            array.push(tweet)
           }
 
           array
@@ -73,8 +62,87 @@ onload = function () {
           if (tweets.length === 0) {
             ipcRenderer.send('quit', '')
           } else {
+            var counter = 0
             mapl(tweets, 1, function(tweet, next) {
-              scrape(tweet, next)
+              var query = `document.getElementsByClassName('promoted-tweet')[${ counter }].innerHTML`
+
+              webview.executeJavaScript(query, false, function (result) {
+                jsdom.env(result, function (err, window) {
+                  if (err) {
+                    throw err
+                  } else {
+                    // extract username, url, text from HTML markup
+                    var username = window.document.getElementsByClassName('js-action-profile-name')[1].getElementsByTagName('b')[0].textContent
+                    var url = 'https://twitter.com' + window.document.getElementsByClassName('js-permalink')[0].href
+                    var text = window.document.getElementsByClassName('js-tweet-text')[0].textContent
+
+                    // compose timestamp (eg. 2016-12-25_09-00-05-175)
+                    var timestamp = dateFormat(new Date(), 'yyyy-mm-dd_HH-MM-ss-l')
+
+                    // compose filename
+                    var filename = path.resolve(__dirname, `${timestamp}_${username}`)
+
+                    // compose text file content
+                    var output = `Username: ${username}\n\nURL: ${url}\n\nTweet: ${text}`
+
+                    // export text file
+                    ipcRenderer.send('save-text', {
+                      filename: filename,
+                      text: output
+                    })
+
+                    var query = `
+                      var bound = document.getElementsByClassName('promoted-tweet')[${ counter }].getBoundingClientRect()
+                      var rect = {
+                        y: bound.top,
+                        width: bound.width,
+                        height: bound.height
+                      }
+                      var y = window.scrollY
+
+                      var array = [rect, y]
+                      array
+                    `
+
+                    webview.executeJavaScript(query, false, function (result) {
+
+                      var tweet = {
+                        y: result[0].y,
+                        width: result[0].width,
+                        height: result[0].height
+                      }
+
+                      var position = result[1] + tweet.y
+                      var query = `window.scrollTo(0, ${ position - 48 })`
+
+                      webview.executeJavaScript(query, false, function (result) {
+                        webview.executeJavaScript('window.devicePixelRatio', false, function (result) {
+                          // get device pixel ratio for screenshot purposes
+                          var pixelRatio = Number(result)
+
+                          var rect = {
+                            x: 337 * pixelRatio,
+                            y: 48 * pixelRatio,
+                            width: tweet.width * pixelRatio,
+                            height: tweet.height * pixelRatio
+                          }
+
+                          setTimeout(function () {
+                            webview.capturePage(rect, function (image) {
+                              counter++
+                              next(null, 0)
+                              ipcRenderer.send('save-image', {
+                                filename: filename,
+                                image: image.toPNG()
+                              })
+                            })
+                          }, 2000)
+                        })
+                      })
+                    })
+                  }
+                })
+              })
             }, function(err, results) {
               setTimeout(function () {
                 ipcRenderer.send('quit', '')
@@ -84,70 +152,5 @@ onload = function () {
         })
       }
     }, 3000)
-  }
-
-  // scrape information from promoted tweets
-  function scrape (tweet, next) {
-    jsdom.env(tweet.html, function (err, window) {
-      if (err) {
-        throw err
-      } else {
-        // extract username, url, text from HTML markup
-        var username = window.document.getElementsByClassName('js-action-profile-name')[1].getElementsByTagName('b')[0].textContent
-        var url = 'https://twitter.com' + window.document.getElementsByClassName('js-permalink')[0].href
-        var text = window.document.getElementsByClassName('js-tweet-text')[0].textContent
-
-        // compose timestamp (eg. 2016-12-25_09-00-05-175)
-        var timestamp = dateFormat(new Date(), 'yyyy-mm-dd_HH-MM-ss-l')
-
-        // compose filename
-        var filename = path.resolve(__dirname, `${timestamp}_${username}`)
-
-        // compose text file content
-        var output = `Username: ${username}\n\nURL: ${url}\n\nTweet: ${text}`
-
-        // export data
-        saveText(filename, output)
-        saveImage(filename, tweet, next)
-      }
-    })
-  }
-
-  // save to text file
-  function saveText (filename, output) {
-    ipcRenderer.send('save-text', {
-      filename: filename,
-      text: output
-    })
-  }
-
-  // save to PNG
-  function saveImage (filename, tweet, next) {
-    var position = Math.abs(tweet.position - tweet.y)
-    var scrollTo = 'window.scrollTo(0, ' + (position - 48) + ')'
-
-    webview.executeJavaScript(scrollTo, false, function (result) {
-      webview.executeJavaScript('window.devicePixelRatio', false, function (result) {
-        // get device pixel ratio for screenshot purposes
-        var pixelRatio = Number(result)
-
-        var rect = {
-          x: 337 * pixelRatio,
-          y: 48 * pixelRatio,
-          width: tweet.width * pixelRatio,
-          height: (tweet.height + 48) * pixelRatio
-        }
-
-        setTimeout(function () {
-          webview.capturePage(rect, function (image) {
-            next(null, 0)
-            ipcRenderer.send('save-image', {
-              filename: filename,
-              image: image.toPNG()
-            })
-          })
-        }, 3000)
-      })
-    })
   }
 }
