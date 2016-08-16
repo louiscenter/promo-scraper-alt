@@ -8,6 +8,8 @@ The original `promo-scraper` was hastily cobbled together using `nightmare`, but
 
 Unlike `promo-scraper`, `promo-scraper-alt` will take screenshots of promoted tweets directly from your home timeline, rather than visiting the promoted tweet URL in separate process. I wanted to do this incase `promo-scraper`'s screenshot method was accidentally influencing Twitter's ad delivery algorithm.
 
+![Screenshot of promo-scraper-alt](screenshot.png)
+
 ## Notes
 `promo-scraper-alt` requires Node.js, and was built and tested using Node v5.4.0, on Mac OS X 10.11.6.
 
