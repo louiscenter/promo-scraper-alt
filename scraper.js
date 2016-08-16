@@ -78,7 +78,7 @@ onload = function () {
             }, function(err, results) {
               setTimeout(function () {
                 ipcRenderer.send('quit', '')
-              }, 5000)              
+              }, 5000)
             })
           }
         })
@@ -123,13 +123,7 @@ onload = function () {
 
   // save to PNG
   function saveImage (filename, tweet, next) {
-    var position
-    if (tweet.y < 0) {
-      position = (tweet.position - Math.abs(tweet.y))
-    } else {
-      position = (tweet.position + tweet.y)
-    }
-
+    var position = Math.abs(tweet.position - tweet.y)
     var scrollTo = 'window.scrollTo(0, ' + (position - 48) + ')'
 
     webview.executeJavaScript(scrollTo, false, function (result) {
