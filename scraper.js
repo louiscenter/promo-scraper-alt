@@ -8,6 +8,7 @@ const jsdom = require('jsdom')
 const dateFormat = require('dateformat')
 
 onload = function () {
+  // webview element
   const webview = document.getElementById('twitter')
 
   // get user login from main process
@@ -18,7 +19,7 @@ onload = function () {
 
   ipcRenderer.send('get-user-info', '')
 
-  // login
+  // login after 3 seconds
   setTimeout(function () {
     var login = `
       document.getElementsByClassName('js-username-field')[0].value = '${ user.username }'
@@ -32,19 +33,20 @@ onload = function () {
     })
   }, 3000)
 
-  // scroll to bottom 4 times
-  var counter = 0;
+  // scroll to bottom 4 times @ intervals of 3 seconds
+  var scrollCounter = 0;
 
   function scroll () {
     setTimeout(function () {
-      if (counter < 4) {
+      if (scrollCounter < 4) {
         var scrollTo = 'window.scrollTo(0, 999999)'
 
         webview.executeJavaScript(scrollTo, false, function (result) {
-          counter++
+          scrollCounter++
           scroll()
         })
       } else {
+        // start scraping
         var getTweets = `
           var array = []
           var promoted = document.getElementsByClassName('promoted-tweet')
@@ -56,16 +58,20 @@ onload = function () {
           array
         `
 
+        // query DOM for all promoted tweets
         webview.executeJavaScript(getTweets, false, function (result) {
-          var tweets = result
+          var ads = result
 
-          if (tweets.length === 0) {
+          // quit if there are no promoted tweets
+          if (ads.length === 0) {
             ipcRenderer.send('quit', '')
           } else {
-            var counter = 0
-            mapl(tweets, 1, function(tweet, next) {
-              var query = `document.getElementsByClassName('promoted-tweet')[${ counter }].innerHTML`
+            // iterate through promoted tweets one at a time
+            var tweetCounter = 0
 
+            mapl(ads, 1, function(tweet, next) {
+              // convert innerHTML of promoted tweet to DOM
+              var query = `document.getElementsByClassName('promoted-tweet')[${ tweetCounter }].innerHTML`
               webview.executeJavaScript(query, false, function (result) {
                 jsdom.env(result, function (err, window) {
                   if (err) {
@@ -91,8 +97,9 @@ onload = function () {
                       text: output
                     })
 
+                    // get bounds of promoted tweet for screenshot
                     var query = `
-                      var bound = document.getElementsByClassName('promoted-tweet')[${ counter }].getBoundingClientRect()
+                      var bound = document.getElementsByClassName('promoted-tweet')[${ tweetCounter }].getBoundingClientRect()
                       var rect = {
                         y: bound.top,
                         width: bound.width,
@@ -105,21 +112,28 @@ onload = function () {
                     `
 
                     webview.executeJavaScript(query, false, function (result) {
-
-                      var tweet = {
+                      var ad = {
                         y: result[0].y,
                         width: result[0].width,
                         height: result[0].height
                       }
 
-                      var position = result[1] + tweet.y
-                      var query = `window.scrollTo(0, ${ position - 48 })`
+                      var y = {
+                        viewport: result[1],
+                        ad: result[1] + ad.y
+                      }
+
+                      // scroll to ad
+                      var query = `window.scrollTo(0, ${ y.ad - 48 })`
 
                       webview.executeJavaScript(query, false, function (result) {
-                        webview.executeJavaScript('window.devicePixelRatio', false, function (result) {
-                          // get device pixel ratio for screenshot purposes
+                        // get device pixel ratio for screenshot purposes
+                        var query = 'window.devicePixelRatio'
+
+                        webview.executeJavaScript(query, false, function (result) {
                           var pixelRatio = Number(result)
 
+                          // create bound rect for screenshot
                           var rect = {
                             x: 337 * pixelRatio,
                             y: 48 * pixelRatio,
@@ -127,9 +141,11 @@ onload = function () {
                             height: tweet.height * pixelRatio
                           }
 
+                          // screenshot ad after 2 seconds
                           setTimeout(function () {
                             webview.capturePage(rect, function (image) {
-                              counter++
+                              // move onto next ad
+                              tweetCounter++
                               next(null, 0)
                               ipcRenderer.send('save-image', {
                                 filename: filename,
@@ -144,6 +160,7 @@ onload = function () {
                 })
               })
             }, function(err, results) {
+              // quit after all ads are saved
               setTimeout(function () {
                 ipcRenderer.send('quit', '')
               }, 5000)
