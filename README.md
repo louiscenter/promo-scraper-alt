@@ -10,6 +10,10 @@ Unlike `promo-scraper`, `promo-scraper-alt` will take screenshots of promoted tw
 
 ![Screenshot of promo-scraper-alt](screenshot.png)
 
+## Why?
+
+`promo-scraper` and `promo-scraper-alt` were built in response to this [this tweet](https://twitter.com/adamhrv/status/757202073972801536) by [Adam Harvey](https://twitter.com/adamhrv).
+
 ## Notes
 `promo-scraper-alt` requires Node.js, and was built and tested using Node v5.4.0, on Mac OS X 10.11.6.
 
