@@ -38,9 +38,9 @@ onload = function () {
   function scroll () {
     setTimeout(function () {
       if (counter < 4) {
-        var scroll = 'window.scrollTo(0, 999999)'
+        var scrollTo = 'window.scrollTo(0, 999999)'
 
-        webview.executeJavaScript(scroll, false, function (result) {
+        webview.executeJavaScript(scrollTo, false, function (result) {
           counter++
           scroll()
         })
@@ -71,13 +71,16 @@ onload = function () {
           var tweets = result
 
           if (tweets.length === 0) {
-            app.quit()
+            ipcRenderer.send('quit', '')
+          } else {
+            mapl(tweets, 1, function(tweet, next) {
+              scrape(tweet, next)
+            }, function(err, results) {
+              setTimeout(function () {
+                ipcRenderer.send('quit', '')
+              }, 5000)              
+            })
           }
-          mapl(tweets, 1, function(tweet, next) {
-            scrape(tweet, next)
-          }, function(err, results) {
-            app.quit()
-          })
         })
       }
     }, 3000)

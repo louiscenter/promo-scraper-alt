@@ -47,6 +47,10 @@ app.on('activate', () => {
   }
 })
 
+ipcMain.on('quit', function (event, arg) {
+  app.quit()
+})
+
 ipcMain.on('get-user-info', function (event, user) {
   event.sender.send('get-user-info-reply', {
     username: process.argv[2],
